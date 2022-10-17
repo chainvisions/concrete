@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBaseV1Voter} from "./interfaces/solidly/IBaseV1Voter.sol";
+import {Cast} from "./lib/Cast.sol";
 import {IGauge} from "./interfaces/solidly/IGauge.sol";
 import {IBribe} from "./interfaces/solidly/IBribe.sol";
 import {IVotingEscrow} from "./interfaces/solidly/IVotingEscrow.sol";
@@ -18,6 +19,7 @@ import {IVeDepositor} from "./interfaces/concrete/IVeDepositor.sol";
 /// @notice Contract for depositing liquidity provider tokens into Concrete.
 
 contract LpDepositor is Ownable {
+    using Cast for uint256;
     using SafeERC20 for IERC20;
 
     // Solidly contracts
@@ -36,8 +38,8 @@ contract LpDepositor is Ownable {
     uint256 public tokenID;
 
     struct Amounts {
-        uint256 solid;
-        uint256 rock;
+        uint128 solid;
+        uint128 rock;
     }
 
     // pool -> gauge
@@ -143,14 +145,14 @@ contract LpDepositor is Ownable {
             if (total > 0) {
                 uint256 delta = IGauge(gaugeForPool[pool]).earned(address(SOLID), address(this));
                 delta -= delta * 15 / 100;
-                integral.solid += 1e18 * delta / total;
-                integral.rock += 1e18 * (delta * 10000 / 42069) / total;
+                integral.solid += (1e18 * delta / total).u128();
+                integral.rock += (1e18 * (delta * 10000 / 42069) / total).u128();
             }
 
             Amounts storage integralFor = rewardIntegralFor[account][pool];
             if (integralFor.solid < integral.solid) {
-                pending[i].solid += balance * (integral.solid - integralFor.solid) / 1e18;
-                pending[i].rock += balance * (integral.rock - integralFor.rock) / 1e18;
+                pending[i].solid += (balance * (integral.solid - integralFor.solid) / 1e18).u128();
+                pending[i].rock += (balance * (integral.rock - integralFor.rock) / 1e18).u128();
             }
             unchecked { ++i; }
         }
@@ -415,8 +417,8 @@ contract LpDepositor is Ownable {
                 delta -= fee;
                 unclaimedSolidBonus += fee;
 
-                integral.solid += 1e18 * delta / total;
-                integral.rock += 1e18 * (delta * 10000 / 42069) / total;
+                integral.solid += (1e18 * delta / total).u128();
+                integral.rock += (1e18 * (delta * 10000 / 42069) / total).u128();
                 rewardIntegral[pool] = integral;
             }
         }
@@ -424,8 +426,8 @@ contract LpDepositor is Ownable {
             Amounts memory integralFor = rewardIntegralFor[user][pool];
             if (integralFor.solid < integral.solid) {
                 Amounts storage claims = claimable[user][pool];
-                claims.solid += balance * (integral.solid - integralFor.solid) / 1e18;
-                claims.rock += balance * (integral.rock - integralFor.rock) / 1e18;
+                claims.solid += (balance * (integral.solid - integralFor.solid) / 1e18).u128();
+                claims.rock += (balance * (integral.rock - integralFor.rock) / 1e18).u128();
                 rewardIntegralFor[user][pool] = integral;
             }
         }
