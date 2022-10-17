@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT 
 pragma solidity 0.8.13;
 
-import "./dependencies/Ownable.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/concrete/ILpDepositor.sol";
-import "./interfaces/concrete/IRockPartners.sol";
-import "./interfaces/solidly/IBaseV1Voter.sol";
-import "./interfaces/concrete/IVeDepositor.sol";
-import "./interfaces/concrete/IFeeDistributor.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ILpDepositor} from "./interfaces/concrete/ILpDepositor.sol";
+import {IRockPartners} from "./interfaces/concrete/IRockPartners.sol";
+import {IBaseV1Voter} from "./interfaces/solidly/IBaseV1Voter.sol";
+import {IVeDepositor} from "./interfaces/concrete/IVeDepositor.sol";
+import {IFeeDistributor} from "./interfaces/concrete/IFeeDistributor.sol";
 
-contract Whitelister is IERC20, Ownable {
-
-    string public constant name = "Concrete Whitelisting Token";
-    string public constant symbol = "ROCK-WL";
-    uint8 public constant decimals = 18;
-    uint256 public override totalSupply;
-
-    mapping(address => uint256) public override balanceOf;
-    mapping(address => mapping(address => uint256)) public override allowance;
-
+contract Whitelister is ERC20("Concrete Whitelisting Token", "ROCK-WL"), Ownable {
     mapping(address => uint256) public lastEarlyPartnerMint;
 
     IERC20 public immutable SOLID;
@@ -60,55 +52,6 @@ contract Whitelister is IERC20, Ownable {
         renounceOwnership();
     }
 
-    function approve(address _spender, uint256 _value) external override returns (bool) {
-        allowance[msg.sender][_spender] = _value;
-        emit Approval(msg.sender, _spender, _value);
-        return true;
-    }
-
-    /** shared logic for transfer and transferFrom */
-    function _transfer(address _from, address _to, uint256 _value) internal {
-        require(balanceOf[_from] >= _value, "Insufficient balance");
-        balanceOf[_from] -= _value;
-        balanceOf[_to] += _value;
-        emit Transfer(_from, _to, _value);
-    }
-
-    /**
-        @notice Transfer tokens to a specified address
-        @param _to The address to transfer to
-        @param _value The amount to be transferred
-        @return Success boolean
-     */
-    function transfer(address _to, uint256 _value) public override returns (bool) {
-        _transfer(msg.sender, _to, _value);
-        return true;
-    }
-
-    /**
-        @notice Transfer tokens from one address to another
-        @param _from The address which you want to send tokens from
-        @param _to The address which you want to transfer to
-        @param _value The amount of tokens to be transferred
-        @return Success boolean
-     */
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _value
-    )
-        public
-        override
-        returns (bool)
-    {
-        require(allowance[_from][msg.sender] >= _value, "Insufficient allowance");
-        if (allowance[_from][msg.sender] != type(uint).max) {
-            allowance[_from][msg.sender] -= _value;
-        }
-        _transfer(_from, _to, _value);
-        return true;
-    }
-
     /**
         @notice Mint three free whitelist tokens as an early partner
         @dev Each early partner may call this once every 30 days
@@ -118,9 +61,7 @@ contract Whitelister is IERC20, Ownable {
         require(lastEarlyPartnerMint[msg.sender] + 86400 * 30 < block.timestamp, "One mint per month");
 
         lastEarlyPartnerMint[msg.sender] = block.timestamp;
-        balanceOf[msg.sender] += 3e18;
-        totalSupply += 3e18;
-        emit Transfer(address(0), msg.sender, 3e18);
+        _mint(msg.sender, 3e18);
     }
 
     function isActiveBiddingPeriod() public view returns (bool) {
@@ -191,14 +132,11 @@ contract Whitelister is IERC20, Ownable {
         rockSOLID.depositTokens(highestBid);
         feeDistributor.depositFee(address(rockSOLID), highestBid);
 
-        balanceOf[highestBidder] += 1e18;
-        totalSupply += 1e18;
+        _mint(highestBidder, 1e18);
 
         highestBid = 0;
         highestBidder = address(0);
         biddingPeriodEnd = 0;
-
-        emit Transfer(address(0), highestBidder, 1e18);
     }
 
     /**
@@ -207,12 +145,8 @@ contract Whitelister is IERC20, Ownable {
         @param token Address of the token to whitelist
      */
     function whitelist(address token) external {
-        require(balanceOf[msg.sender] >= 1e18, "Insufficient balance");
-
-        balanceOf[msg.sender] -= 1e18;
-        totalSupply -= 1e18;
-        emit Transfer(msg.sender, address(0), 1e18);
-
+        require(balanceOf(msg.sender) >= 1e18, "Insufficient balance");
+        _burn(msg.sender, 1e18);
         lpDepositor.whitelist(token);
         emit Whitelisted(token);
     }
