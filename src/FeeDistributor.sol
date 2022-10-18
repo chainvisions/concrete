@@ -176,10 +176,11 @@ contract FeeDistributor is Ownable {
         }
 
         // iterate over weeks that have passed fully without any claims
-        for (uint256 i = lastClaimWeek; i < claimableWeek; i++) {
+        for (uint256 i = lastClaimWeek; i < claimableWeek;) {
             (uint256 userWeight, uint256 totalWeight) = tokenLocker.weeklyWeight(_user, i);
             if (userWeight == 0) continue;
             amount += weeklyFeeAmounts[_token][i] * userWeight / totalWeight;
+            unchecked { ++i; }
         }
 
         // add a partial amount for the active week

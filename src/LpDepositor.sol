@@ -288,7 +288,7 @@ contract LpDepositor is Ownable {
         // fetch gauge rewards and push to the fee distributor
         if (gaugeRewards.length > 0) {
             IGauge(gauge).getReward(address(this), gaugeRewards);
-            for (uint i = 0; i < gaugeRewards.length; i++) {
+            for (uint256 i; i < gaugeRewards.length;) {
                 IERC20 reward = IERC20(gaugeRewards[i]);
                 require(reward != SOLID, "!SOLID as gauge reward");
                 amount = IERC20(reward).balanceOf(address(this));
@@ -297,6 +297,7 @@ contract LpDepositor is Ownable {
                     reward.safeApprove(distributor, type(uint256).max);
                 }
                 IFeeDistributor(distributor).depositFee(address(reward), amount);
+                unchecked { ++i; }
             }
         }
 
@@ -304,7 +305,7 @@ contract LpDepositor is Ownable {
         if (bribeRewards.length > 0) {
             uint256 solidBalance = SOLID.balanceOf(address(this));
             IBribe(bribeForPool[pool]).getReward(tokenID, bribeRewards);
-            for (uint i = 0; i < bribeRewards.length; i++) {
+            for (uint256 i; i < bribeRewards.length;) {
                 IERC20 reward = IERC20(bribeRewards[i]);
                 if (reward == SOLID) {
                     // when SOLID is received as a bribe, add it to the balance
@@ -320,6 +321,7 @@ contract LpDepositor is Ownable {
                     reward.safeApprove(distributor, type(uint256).max);
                 }
                 IFeeDistributor(distributor).depositFee(address(reward), amount);
+                unchecked { ++i; }
             }
         }
 

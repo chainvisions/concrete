@@ -65,10 +65,11 @@ contract RockPartners is Ownable {
 
         uint256 totalWeight;
         require(_receivers.length == _weights.length);
-        for (uint i = 0; i < _receivers.length; i++) {
+        for (uint256 i; i < _receivers.length;) {
             totalWeight += _weights[i];
             // set claimed to 1 to avoid initial claim requirement for vestees calling `claim`
             userData[_receivers[i]] = UserWeight({tranche: 1, weight: _weights[i], claimed: 1});
+            unchecked { ++i; }
         }
 
         trancheData[1].weight = totalWeight;

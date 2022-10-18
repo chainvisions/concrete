@@ -91,8 +91,7 @@ contract StakingRewards is Ownable {
     }
 
     function getReward() public updateReward(msg.sender) {
-
-        for (uint i; i < rewardTokens.length; i++) {
+        for (uint256 i; i < rewardTokens.length;) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
             if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
@@ -108,6 +107,7 @@ contract StakingRewards is Ownable {
                 IERC20(token).safeTransfer(msg.sender, reward);
                 emit RewardPaid(msg.sender, token, reward);
             }
+            unchecked { ++i; }
         }
     }
 
