@@ -22,41 +22,64 @@ contract LpDepositor is Ownable {
     using Cast for uint256;
     using SafeERC20 for IERC20;
 
-    // Solidly contracts
-    IERC20 public immutable SOLID;
-    IVotingEscrow public immutable votingEscrow;
-    IBaseV1Voter public immutable solidlyVoter;
-
-    // Concrete contracts
-    IRockToken public ROCK;
-    IVeDepositor public rockSOLID;
-    IFeeDistributor public feeDistributor;
-    address public stakingRewards;
-    address public tokenWhitelister;
-    address public depositTokenImplementation;
-
-    uint256 public tokenID;
-
+    /// @notice Structure for keeping track of reward amounts.
     struct Amounts {
         uint128 solid;
         uint128 rock;
     }
 
-    // pool -> gauge
+    /// @notice SOLID token contract.
+    IERC20 public immutable SOLID;
+
+    /// @notice ROCK token contract.
+    IRockToken public immutable ROCK;
+
+    /// @notice Solidly veNFT/Voting Escrow contract.
+    IVotingEscrow public immutable votingEscrow;
+
+    /// @notice Solidly voting contract.
+    IBaseV1Voter public immutable solidlyVoter;
+
+    /// @notice rockSOLID token contract.
+    IVeDepositor public rockSOLID;
+    
+    /// @notice Contract for distributing Concrete fees.
+    IFeeDistributor public feeDistributor;
+
+    /// @notice StakingRewards contract for staking rockSOLID.
+    address public stakingRewards;
+
+    /// @notice Concrete whitelister contract.
+    address public tokenWhitelister;
+
+    /// @notice Implementation for Concrete deposit receipts.
+    address public depositTokenImplementation;
+
+    /// @notice Token ID for Concrete's veNFT.
+    uint256 public tokenID;
+
+    /// @notice Gauge contract for each Solidly pool.
     mapping(address => address) public gaugeForPool;
-    // pool -> bribe
+
+    /// @notice Bribe contract for each Solidly pool.
     mapping(address => address) public bribeForPool;
-    // pool -> concrete deposit token
+
+    /// @notice Concrete deposit token for each Solidly pool.
     mapping(address => address) public tokenForPool;
-    // user -> pool -> deposit amount
+
+    /// @notice User deposits for each Solidly pool.
     mapping(address => mapping(address => uint256)) public userBalances;
-    // pool -> total deposit amount
+
+    /// @notice Total deposited tokens for each Solidly pool.
     mapping(address => uint256) public totalBalances;
-    // pool -> integrals
+
+    /// @notice Reward integrals for each Solidly pool.
     mapping(address => Amounts) public rewardIntegral;
-    // user -> pool -> integrals
+
+    /// @notice Last recorded reward integrals per user for each Solidly pool.
     mapping(address => mapping(address => Amounts)) public rewardIntegralFor;
-    // user -> pool -> claimable
+
+    /// @notice Claimable rewards for each Solidly pool for a user.
     mapping(address => mapping(address => Amounts)) claimable;
 
     // internal accounting to track SOLID fees for rockSOLID stakers and ROCK lockers
@@ -68,19 +91,32 @@ contract LpDepositor is Ownable {
     event RewardPaid(address indexed user, address indexed rewardsToken, uint256 reward);
     event TransferDeposit(address indexed pool, address indexed from, address indexed to, uint256 amount);
 
+    /// @notice Constructor for the LpDepositor contract.
+    /// @param _solid SOLID token contract.
+    /// @param _rock ROCK token contract.
+    /// @param _votingEscrow Solidly veNFT/Voting Escrow contract.
+    /// @param _solidlyVoter Solidly voting contract.
     constructor(
         IERC20 _solid,
+        IRockToken _rock,
         IVotingEscrow _votingEscrow,
         IBaseV1Voter _solidlyVoter
 
     ) {
         SOLID = _solid;
+        ROCK = _rock;
         votingEscrow = _votingEscrow;
         solidlyVoter = _solidlyVoter;
     }
 
+    /// @notice Sets remaining contract addresses.
+    /// @param _rockSolid rockSOLID token contract.
+    /// @param _rockVoter ROCK voting contract.
+    /// @param _feeDistributor Contract for distributing Concrete fees.
+    /// @param _stakingRewards StakingRewards contract for staking rockSOLID.
+    /// @param _tokenWhitelister Concrete whitelister contract.
+    /// @param _depositToken Implementation for Concrete deposit receipts.
     function setAddresses(
-        IRockToken _rock,
         IVeDepositor _rockSolid,
         address _rockVoter,
         IFeeDistributor _feeDistributor,
@@ -88,7 +124,6 @@ contract LpDepositor is Ownable {
         address _tokenWhitelister,
         address _depositToken
     ) external onlyOwner {
-        ROCK = _rock;
         rockSOLID = _rockSolid;
         feeDistributor = _feeDistributor;
         stakingRewards = _stakingRewards;
@@ -103,9 +138,7 @@ contract LpDepositor is Ownable {
         renounceOwnership();
     }
 
-    /**
-        @dev Ensure SOLID, ROCK and rockSOLID are whitelisted
-     */
+    /// @notice Whitelists protocol tokens.
     function whitelistProtocolTokens() external {
         require(tokenID != 0, "No initial NFT deposit");
         if (!solidlyVoter.isWhitelisted(address(SOLID))) {
@@ -125,19 +158,22 @@ contract LpDepositor is Ownable {
         @param pools List of pool addresses to query rewards for
         @return pending Array of tuples of (SOLID rewards, ROCK rewards) for each item in `pool`
      */
+    /// @notice Calculates the pending SOLID and ROCK rewards for a user.
+    /// @param _account User to calculate rewards for.
+    /// @param _pools List of pools to calculate rewards from.
     function pendingRewards(
-        address account,
-        address[] calldata pools
+        address _account,
+        address[] calldata _pools
     )
         external
         view
         returns (Amounts[] memory pending)
     {
-        pending = new Amounts[](pools.length);
-        for (uint256 i; i < pools.length;) {
-            address pool = pools[i];
-            pending[i] = claimable[account][pool];
-            uint256 balance = userBalances[account][pool];
+        pending = new Amounts[](_pools.length);
+        for (uint256 i; i < _pools.length;) {
+            address pool = _pools[i];
+            pending[i] = claimable[_account][pool];
+            uint256 balance = userBalances[_account][pool];
             if (balance == 0) continue;
 
             Amounts memory integral = rewardIntegral[pool];
@@ -149,7 +185,7 @@ contract LpDepositor is Ownable {
                 integral.rock += (1e18 * (delta * 10000 / 42069) / total).u128();
             }
 
-            Amounts storage integralFor = rewardIntegralFor[account][pool];
+            Amounts storage integralFor = rewardIntegralFor[_account][pool];
             if (integralFor.solid < integral.solid) {
                 pending[i].solid += (balance * (integral.solid - integralFor.solid) / 1e18).u128();
                 pending[i].rock += (balance * (integral.rock - integralFor.rock) / 1e18).u128();
@@ -159,77 +195,68 @@ contract LpDepositor is Ownable {
         return pending;
     }
 
-    /**
-        @notice Deposit Solidly LP tokens into a gauge via this contract
-        @dev Each deposit is also represented via a new ERC20, the address
-             is available by querying `tokenForPool(pool)`
-        @param pool Address of the pool token to deposit
-        @param amount Quantity of tokens to deposit
-     */
-    function deposit(address pool, uint256 amount) external {
+    /// @notice Deposits Solidly LP tokens into a gauge.
+    /// @param _pool Address of the pool to deposit to.
+    /// @param _amount Quantity of tokens to deposit.
+    function deposit(address _pool, uint256 _amount) external {
         require(tokenID != 0, "Must lock SOLID first");
-        require(amount > 0, "Cannot deposit zero");
+        require(_amount > 0, "Cannot deposit zero");
 
-        address gauge = gaugeForPool[pool];
-        uint256 total = totalBalances[pool];
-        uint256 balance = userBalances[msg.sender][pool];
+        address gauge = gaugeForPool[_pool];
+        uint256 total = totalBalances[_pool];
+        uint256 balance = userBalances[msg.sender][_pool];
 
         if (gauge == address(0)) {
-            gauge = solidlyVoter.gauges(pool);
+            gauge = solidlyVoter.gauges(_pool);
             if (gauge == address(0)) {
-                gauge = solidlyVoter.createGauge(pool);
+                gauge = solidlyVoter.createGauge(_pool);
             }
-            gaugeForPool[pool] = gauge;
-            bribeForPool[pool] = solidlyVoter.bribes(gauge);
-            tokenForPool[pool] = _deployDepositToken(pool);
-            IERC20(pool).approve(gauge, type(uint256).max);
+            gaugeForPool[_pool] = gauge;
+            bribeForPool[_pool] = solidlyVoter.bribes(gauge);
+            tokenForPool[_pool] = _deployDepositToken(_pool);
+            IERC20(_pool).approve(gauge, type(uint256).max);
         } else {
-            _updateIntegrals(msg.sender, pool, gauge, balance, total);
+            _updateIntegrals(msg.sender, _pool, gauge, balance, total);
         }
 
-        IERC20(pool).transferFrom(msg.sender, address(this), amount);
-        IGauge(gauge).deposit(amount, tokenID);
+        IERC20(_pool).transferFrom(msg.sender, address(this), _amount);
+        IGauge(gauge).deposit(_amount, tokenID);
 
-        userBalances[msg.sender][pool] = balance + amount;
-        totalBalances[pool] = total + amount;
-        IDepositToken(tokenForPool[pool]).mint(msg.sender, amount);
-        emit Deposited(msg.sender, pool, amount);
+        userBalances[msg.sender][_pool] = balance + _amount;
+        totalBalances[_pool] = total + _amount;
+        IDepositToken(tokenForPool[_pool]).mint(msg.sender, _amount);
+        emit Deposited(msg.sender, _pool, _amount);
     }
 
-    /**
-        @notice Withdraw Solidly LP tokens
-        @param pool Address of the pool token to withdraw
-        @param amount Quantity of tokens to withdraw
-     */
-    function withdraw(address pool, uint256 amount) external {
-        address gauge = gaugeForPool[pool];
-        uint256 total = totalBalances[pool];
-        uint256 balance = userBalances[msg.sender][pool];
+    /// @notice Withdraws Solidly LP tokens from a gauge.
+    /// @param _pool Address of the pool to withdraw from.
+    /// @param _amount Quantity of tokens to withdraw.
+    function withdraw(address _pool, uint256 _amount) external {
+        address gauge = gaugeForPool[_pool];
+        uint256 total = totalBalances[_pool];
+        uint256 balance = userBalances[msg.sender][_pool];
 
         require(gauge != address(0), "Unknown pool");
-        require(amount > 0, "Cannot withdraw zero");
-        require(balance >= amount, "Insufficient deposit");
+        require(_amount > 0, "Cannot withdraw zero");
+        require(balance >= _amount, "Insufficient deposit");
 
-        _updateIntegrals(msg.sender, pool, gauge, balance, total);
+        _updateIntegrals(msg.sender, _pool, gauge, balance, total);
 
-        userBalances[msg.sender][pool] = balance - amount;
-        totalBalances[pool] = total - amount;
+        userBalances[msg.sender][_pool] = balance - _amount;
+        totalBalances[_pool] = total - _amount;
 
-        IDepositToken(tokenForPool[pool]).burn(msg.sender, amount);
-        IGauge(gauge).withdraw(amount);
-        IERC20(pool).transfer(msg.sender, amount);
-        emit Withdrawn(msg.sender, pool, amount);
+        IDepositToken(tokenForPool[_pool]).burn(msg.sender, _amount);
+        IGauge(gauge).withdraw(_amount);
+        IERC20(_pool).transfer(msg.sender, _amount);
+        emit Withdrawn(msg.sender, _pool, _amount);
     }
 
-    /**
-        @notice Claim SOLID and ROCK rewards earned from depositing LP tokens
-        @dev An additional 5% of ROCK is also minted for `StakingRewards`
-        @param pools List of pools to claim for
-     */
-    function getReward(address[] calldata pools) external {
+    /// @notice Claims SOLID and ROCK rewards.
+    /// @param _pools List of pools to claim rewards from.
+    function getReward(address[] calldata _pools) external {
         Amounts memory claims;
-        for (uint256 i; i < pools.length;) {
-            address pool = pools[i];
+        for (uint256 i; i < _pools.length;) {
+            address pool = _pools[i];
             address gauge = gaugeForPool[pool];
             uint256 total = totalBalances[pool];
             uint256 balance = userBalances[msg.sender][pool];
@@ -262,34 +289,28 @@ contract LpDepositor is Ownable {
         require(s__);
     }
 
-    /**
-        @notice Claim incentive tokens from gauge and/or bribe contracts
-                and transfer them to `FeeDistributor`
-        @dev This method is unguarded, anyone can claim any reward at any time.
-             Claimed tokens are streamed to ROCK lockers starting at the beginning
-             of the following epoch week.
-        @param pool Address of the pool token to claim for
-        @param gaugeRewards List of incentive tokens to claim for in the pool's gauge
-        @param bribeRewards List of incentive tokens to claim for in the pool's bribe contract
-     */
+    /// @notice Claims rewards from gauges and bribes for ROCK lockers.
+    /// @param _pool Address of the pool to claim rewards from.
+    /// @param _gaugeRewards Reward tokens to claim from the gauge.
+    /// @param _bribeRewards Reward tokens to claim from bribes.
     function claimLockerRewards(
-        address pool,
-        address[] calldata gaugeRewards,
-        address[] calldata bribeRewards
+        address _pool,
+        address[] calldata _gaugeRewards,
+        address[] calldata _bribeRewards
     ) external {
         // claim pending gauge rewards for this pool to update `unclaimedSolidBonus`
-        address gauge = gaugeForPool[pool];
+        address gauge = gaugeForPool[_pool];
         require(gauge != address(0), "Unknown pool");
-        _updateIntegrals(address(0), pool, gauge, 0, totalBalances[pool]);
+        _updateIntegrals(address(0), _pool, gauge, 0, totalBalances[_pool]);
 
         address distributor = address(feeDistributor);
         uint256 amount;
 
         // fetch gauge rewards and push to the fee distributor
-        if (gaugeRewards.length > 0) {
-            IGauge(gauge).getReward(address(this), gaugeRewards);
-            for (uint256 i; i < gaugeRewards.length;) {
-                IERC20 reward = IERC20(gaugeRewards[i]);
+        if (_gaugeRewards.length > 0) {
+            IGauge(gauge).getReward(address(this), _gaugeRewards);
+            for (uint256 i; i < _gaugeRewards.length;) {
+                IERC20 reward = IERC20(_gaugeRewards[i]);
                 require(reward != SOLID, "!SOLID as gauge reward");
                 amount = IERC20(reward).balanceOf(address(this));
                 if (amount == 0) continue;
@@ -302,11 +323,11 @@ contract LpDepositor is Ownable {
         }
 
         // fetch bribe rewards and push to the fee distributor
-        if (bribeRewards.length > 0) {
+        if (_bribeRewards.length > 0) {
             uint256 solidBalance = SOLID.balanceOf(address(this));
-            IBribe(bribeForPool[pool]).getReward(tokenID, bribeRewards);
-            for (uint256 i; i < bribeRewards.length;) {
-                IERC20 reward = IERC20(bribeRewards[i]);
+            IBribe(bribeForPool[_pool]).getReward(tokenID, _bribeRewards);
+            for (uint256 i; i < _bribeRewards.length;) {
+                IERC20 reward = IERC20(_bribeRewards[i]);
                 if (reward == SOLID) {
                     // when SOLID is received as a bribe, add it to the balance
                     // that will be converted to rockSOLID prior to distribution
@@ -339,40 +360,51 @@ contract LpDepositor is Ownable {
         }
     }
 
-    // External guarded functions - only callable by other protocol contracts ** //
+    /// @notice Function for protocol contracts to transfer Concrete deposits.
+    /// @param _pool Address of the pool to transfer deposits from.
+    /// @param _from Address of the sender.
+    /// @param _to Address of the recipient.
+    /// @param _amount Amount of tokens to transfer.
+    function transferDeposit(address _pool, address _from, address _to, uint256 _amount) external returns (bool) {
+        require(msg.sender == tokenForPool[_pool], "Unauthorized caller");
+        require(_amount > 0, "Cannot transfer zero");
 
-    function transferDeposit(address pool, address from, address to, uint256 amount) external returns (bool) {
-        require(msg.sender == tokenForPool[pool], "Unauthorized caller");
-        require(amount > 0, "Cannot transfer zero");
+        address gauge = gaugeForPool[_pool];
+        uint256 total = totalBalances[_pool];
 
-        address gauge = gaugeForPool[pool];
-        uint256 total = totalBalances[pool];
+        uint256 balance = userBalances[_from][_pool];
+        require(balance >= _amount, "Insufficient balance");
+        _updateIntegrals(_from, _pool, gauge, balance, total);
+        userBalances[_from][_pool] = balance - _amount;
 
-        uint256 balance = userBalances[from][pool];
-        require(balance >= amount, "Insufficient balance");
-        _updateIntegrals(from, pool, gauge, balance, total);
-        userBalances[from][pool] = balance - amount;
-
-        balance = userBalances[to][pool];
-        _updateIntegrals(to, pool, gauge, balance, total - amount);
-        userBalances[to][pool] = balance + amount;
-        emit TransferDeposit(pool, from, to, amount);
+        balance = userBalances[_to][_pool];
+        _updateIntegrals(_to, _pool, gauge, balance, total - _amount);
+        userBalances[_to][_pool] = balance + _amount;
+        emit TransferDeposit(_pool, _from, _to, _amount);
         return true;
     }
 
-    function whitelist(address token) external returns (bool) {
+    /// @notice Whitelists a token on Solidly.
+    /// @param _token Token to whitelist.
+    /// @return Whether or not the token was whitelisted.
+    function whitelist(address _token) external returns (bool) {
         require(msg.sender == tokenWhitelister, "Only whitelister");
         require(votingEscrow.balanceOfNFT(tokenID) > solidlyVoter.listing_fee(), "Not enough veSOLID");
-        solidlyVoter.whitelist(token, tokenID);
+        solidlyVoter.whitelist(_token, tokenID);
         return true;
     }
 
+    /// @notice Hook for handling ERC721 transfers into this contract.
+    /// @param _operator The address that sent the NFT. Should be rockSOLID.
+    /// @param _from Unused field.
+    /// @param _tokenID The ID of the NFT being transferred.
+    /// @return Standard hook return value. "bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))"
     function onERC721Received(
         address _operator,
         address _from,
         uint256 _tokenID,
         bytes calldata
-    )external returns (bytes4) {
+    ) external returns (bytes4) {
         _from;
         // VeDepositor transfers the NFT to this contract so this callback is required
         require(_operator == address(rockSOLID));
