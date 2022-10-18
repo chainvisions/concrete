@@ -40,6 +40,9 @@ contract StakingRewards is Ownable {
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, address indexed rewardsToken, uint256 reward);
 
+    /// @notice Sets addresses for the staking contract.
+    /// @param _stakingToken The address of the staking token.
+    /// @param _rewardTokens The addresses of the reward tokens.
     function setAddresses(
         address _stakingToken,
         address[2] memory _rewardTokens
@@ -56,13 +59,15 @@ contract StakingRewards is Ownable {
     }
 
     function rewardPerToken(address _rewardsToken) public view returns (uint256) {
-        if (totalSupply == 0) {
-            return rewardData[_rewardsToken].rewardPerTokenStored;
+        Reward memory data = rewardData[_rewardsToken];
+        uint256 _totalSupply = totalSupply;
+        if (_totalSupply == 0) {
+            return data.rewardPerTokenStored;
         }
-        uint256 duration = lastTimeRewardApplicable(_rewardsToken) - rewardData[_rewardsToken].lastUpdateTime;
-        uint256 pending = duration * rewardData[_rewardsToken].rewardRate * 1e18 / totalSupply;
+        uint256 duration = lastTimeRewardApplicable(_rewardsToken) - data.lastUpdateTime;
+        uint256 pending = duration * data.rewardRate * 1e18 / _totalSupply;
         return
-            rewardData[_rewardsToken].rewardPerTokenStored + pending;
+            data.rewardPerTokenStored + pending;
     }
 
     function earned(address account, address _rewardsToken) public view returns (uint256) {
@@ -91,8 +96,9 @@ contract StakingRewards is Ownable {
     }
 
     function getReward() public updateReward(msg.sender) {
-        for (uint256 i; i < rewardTokens.length;) {
-            address token = rewardTokens[i];
+        address[2] memory _rewardTokens = rewardTokens;
+        for (uint256 i; i < _rewardTokens.length;) {
+            address token = _rewardTokens[i];
             Reward storage r = rewardData[token];
             if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
                 // if last reward update was more than 1 hour ago, check for new rewards
@@ -117,7 +123,6 @@ contract StakingRewards is Ownable {
     }
 
     function _notifyRewardAmount(Reward storage r, uint256 reward) internal {
-
         if (block.timestamp >= r.periodFinish) {
             r.rewardRate = reward / REWARDS_DURATION;
         } else {
@@ -131,8 +136,9 @@ contract StakingRewards is Ownable {
     }
 
     modifier updateReward(address account) {
-        for (uint256 i; i < rewardTokens.length;) {
-            address token = rewardTokens[i];
+        address[2] memory _rewardTokens = rewardTokens;
+        for (uint256 i; i < _rewardTokens.length;) {
+            address token = _rewardTokens[i];
             rewardData[token].rewardPerTokenStored = rewardPerToken(token);
             rewardData[token].lastUpdateTime = lastTimeRewardApplicable(token);
             if (account != address(0)) {
@@ -143,5 +149,4 @@ contract StakingRewards is Ownable {
         }
         _;
     }
-
 }
