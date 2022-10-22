@@ -15,26 +15,53 @@ import {IRockVoter} from "./interfaces/concrete/IRockVoter.sol";
 /// @notice Contract for converting veSOLID into rockSOLID.
 
 contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Ownable {
-    // Solidly contracts
+
+    /// @notice Solidly SOLID token.
     IERC20 public immutable token;
+
+    /// @notice Solidly voting escrow.
     IVotingEscrow public immutable votingEscrow;
+
+    /// @notice Solidly veSOLID distribution contract.
     IVeDist public immutable veDistributor;
 
-    // Concrete contracts
+    /// @notice Concrete LP Depositor contract.
     ILpDepositor public lpDepositor;
+
+    /// @notice Concrete voting contract.
     IRockVoter public rockVoter;
+
+    /// @notice Concrete fee distributor contract.
     IFeeDistributor public feeDistributor;
 
+    /// @notice veNFT ID.
     uint256 public tokenID;
+
+    /// @notice Unlock time of the veNFT.
     uint256 public unlockTime;
 
     uint256 constant MAX_LOCK_TIME = 86400 * 365 * 4;
     uint256 constant WEEK = 86400 * 7;
 
+    /// @notice Emitted when tokens are claimed from the veNFT.
+    /// @param user Address of the user who claimed.
+    /// @param amount Amount of tokens claimed.
     event ClaimedFromVeDistributor(address indexed user, uint256 amount);
+
+    /// @notice Emitted when the veNFT is merged.
+    /// @param user Address of the user who deposited the veNFT.
+    /// @param tokenID ID of the veNFT.
+    /// @param amount Amount of tokens in the veNFT.
     event Merged(address indexed user, uint256 tokenID, uint256 amount);
+
+    /// @notice Emitted when the veNFT unlock time is extended.
+    /// @param unlockTime New unlock time.
     event UnlockTimeUpdated(uint256 unlockTime);
 
+    /// @notice Constructor for the VeDepositor contract.
+    /// @param _token SOLID token.
+    /// @param _votingEscrow Solidly voting escrow.
+    /// @param _veDist Solidly veSOLID distribution contract.
     constructor(
         IERC20 _token,
         IVotingEscrow _votingEscrow,
@@ -56,6 +83,10 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         _burn(account, amount);
     }
 
+    /// @notice Sets Concrete addresses.
+    /// @param _lpDepositor Concrete LP Depositor contract.
+    /// @param _rockVoter Concrete voting contract.
+    /// @param _feeDistributor Concrete fee distributor contract.
     function setAddresses(
         ILpDepositor _lpDepositor,
         IRockVoter _rockVoter,
@@ -97,15 +128,9 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
-    /**
-        @notice Merge a veSOLID NFT previously sent to this contract
-                with the main Concrete NFT
-        @dev This is primarily meant to allow claiming balances from NFTs
-             incorrectly sent using `transferFrom`. To deposit an NFT
-             you should always use `safeTransferFrom`.
-        @param _tokenID ID of the NFT to merge
-        @return bool success
-     */
+    /// @notice Merges a veNFT with the main veNFT.
+    /// @param _tokenID ID of the veNFT to merge.
+    /// @return bool success.
     function merge(uint256 _tokenID) external returns (bool) {
         require(tokenID != _tokenID);
         (uint256 amount, uint256 end) = votingEscrow.locked(_tokenID);
@@ -121,11 +146,9 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         return true;
     }
 
-    /**
-        @notice Deposit SOLID tokens and mint rockSOLID
-        @param _amount Amount of SOLID to deposit
-        @return bool success
-     */
+    /// @notice Deposits SOLID tokens and mints rockSOLID.
+    /// @param _amount Amount of SOLID to deposit.
+    /// @return bool success.
     function depositTokens(uint256 _amount) external returns (bool) {
         require(tokenID != 0, "First deposit must be NFT");
 
@@ -137,12 +160,7 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         return true;
     }
 
-    /**
-        @notice Extend the lock time of the protocol's veSOLID NFT
-        @dev Lock times are also extended each time new rockSOLID is minted.
-             If the lock time is already at the maximum duration, calling
-             this function does nothing.
-     */
+    /// @notice Extend the lock time of the protocol's veSOLID NFT.
     function extendLockTime() public {
         uint256 maxUnlock = ((block.timestamp + MAX_LOCK_TIME) / WEEK) * WEEK;
         if (maxUnlock > unlockTime) {
@@ -152,13 +170,7 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         }
     }
 
-    /**
-        @notice Claim veSOLID received via ve(3,3)
-        @dev This function is unguarded, anyone can call to claim at any time.
-             The new veSOLID is represented by newly minted rockSOLID, which is
-             then sent to `FeeDistributor` and streamed to ROCK lockers starting
-             at the beginning of the following epoch week.
-     */
+    /// @notice Claim veSOLID received via ve(3,3).
     function claimFromVeDistributor() external returns (bool) {
         veDistributor.claim(tokenID);
 
