@@ -282,11 +282,9 @@ contract LpDepositor is Ownable {
     /// @notice Splits the veNFT into two NFTs.
     /// @param _amount Amount of rockSOLID to burn to create the new NFT.
     function split(uint256 _amount) external {
-        (bool s_,) = address(rockSOLID).call(abi.encodeWithSignature("burnFrom(address,uint256)", msg.sender, _amount));
-        require(s_);
-        // Send split NFT to msg.sender
-        (bool s__,) = address(votingEscrow).call(abi.encodeWithSignature("split(uint256,uint256, address)", tokenID, _amount, msg.sender));
-        require(s__);
+        rockSOLID.burnFrom(msg.sender, _amount);
+        uint256 newVe = votingEscrow.split(msg.sender, _amount);
+        votingEscrow.transferFrom(address(this), msg.sender, newVe);
     }
 
     /// @notice Claims rewards from gauges and bribes for ROCK lockers.

@@ -48,6 +48,9 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         _token.approve(address(_votingEscrow), type(uint256).max);
     }
 
+    /// @notice Burns rockSOLID tokens from a specified address.
+    /// @param account The address to burn tokens from.
+    /// @param amount The amount of tokens to burn.
     function burnFrom(address account, uint256 amount) external {
         require(msg.sender == address(lpDepositor), "Only LpDepositor");
         _burn(account, amount);

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 interface IVotingEscrow {
     function increase_amount(uint256 tokenID, uint256 value) external;
     function increase_unlock_time(uint256 tokenID, uint256 duration) external;
+    function split(uint256 _from, uint256 _amount) external returns (uint256);
     function merge(uint256 fromID, uint256 toID) external;
     function locked(uint256 tokenID) external view returns (uint256 amount, uint256 unlockTime);
     function setApprovalForAll(address operator, bool approved) external;

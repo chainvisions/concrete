@@ -11,6 +11,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract RockToken is ERC20("Concrete Finance", "ROCK"), Ownable {
 
+    /// @notice Solidly+ migrator address.
+    address public migrator;
+
+    /// @notice ROCK minters.
     mapping(address => bool) public minters;
 
     /**
