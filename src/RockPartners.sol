@@ -16,8 +16,8 @@ contract RockPartners is Ownable {
     IVotingEscrow public immutable votingEscrow;
     IBaseV1Minter public immutable solidMinter;
 
-    IERC20 public rockSOLID;
-    IRockToken public ROCK;
+    IERC20 public immutable ROCK_SOLID;
+    IRockToken public immutable ROCK;
     uint256 public tokenID;
 
     // current number of early ROCK partners
@@ -55,11 +55,15 @@ contract RockPartners is Ownable {
     uint256 public constant MAX_PARTNER_COUNT = 15;
 
     constructor(
+        IERC20 _rockSolid,
+        IRockToken _rock,
         IVotingEscrow _votingEscrow,
         IBaseV1Minter _minter,
         address[] memory _receivers,
         uint256[] memory _weights
     ) {
+        ROCK_SOLID = _rockSolid;
+        ROCK = _rock;
         votingEscrow = _votingEscrow;
         solidMinter = _minter;
 
@@ -75,13 +79,6 @@ contract RockPartners is Ownable {
         trancheData[1].weight = totalWeight;
         trancheData[1].mintPct = 20;
         totalMintPct = 20;
-    }
-
-    function setAddresses(IERC20 _rockSolid, IRockToken _rock) external onlyOwner {
-        rockSOLID = _rockSolid;
-        ROCK = _rock;
-
-        renounceOwnership();
     }
 
     function onERC721Received(
@@ -111,11 +108,11 @@ contract RockPartners is Ownable {
 
         } else if (block.timestamp < finalPartnerDeadline) {
             require(_tokenID < 26, "Only early protocol NFTs are eligible");
-            require(address(rockSOLID) != address(0), "Addresses not set");
+            require(address(ROCK_SOLID) != address(0), "Addresses not set");
 
             // NFTs received after the early deadline are immediately converted to rockSOLID
-            votingEscrow.safeTransferFrom(address(this), address(rockSOLID), _tokenID);
-            rockSOLID.transfer(_operator, amount);
+            votingEscrow.safeTransferFrom(address(this), address(ROCK_SOLID), _tokenID);
+            ROCK_SOLID.transfer(_operator, amount);
 
             // ROCK advance has a 50% immediate penalty and a linear decay to zero over 2 weeks
             amount = amount / 2 * (finalPartnerDeadline - block.timestamp) / (86400 * 14);
@@ -204,12 +201,12 @@ contract RockPartners is Ownable {
 
         if (votingEscrow.ownerOf(tokenID) == address(this)) {
             // transfer the NFT to mint early partner rockSOLID
-            votingEscrow.safeTransferFrom(address(this), address(rockSOLID), tokenID);
+            votingEscrow.safeTransferFrom(address(this), address(ROCK_SOLID), tokenID);
         }
 
         // transfer owed rockSOLID
         uint256 amount = u.weight;
-        rockSOLID.transfer(msg.sender, amount);
+        ROCK_SOLID.transfer(msg.sender, amount);
 
         // mint ROCK advance
         amount /= 10;
