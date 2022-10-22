@@ -75,14 +75,6 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         _token.approve(address(_votingEscrow), type(uint256).max);
     }
 
-    /// @notice Burns rockSOLID tokens from a specified address.
-    /// @param account The address to burn tokens from.
-    /// @param amount The amount of tokens to burn.
-    function burnFrom(address account, uint256 amount) external {
-        require(msg.sender == address(lpDepositor), "Only LpDepositor");
-        _burn(account, amount);
-    }
-
     /// @notice Sets Concrete addresses.
     /// @param _lpDepositor Concrete LP Depositor contract.
     /// @param _rockVoter Concrete voting contract.
@@ -144,6 +136,16 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         extendLockTime();
 
         return true;
+    }
+
+    /// @notice Splits the veNFT into two NFTs.
+    /// @param _amount Amount of rockSOLID to burn to create the new NFT.
+    function split(uint256 _amount) external returns (bool, uint256) {
+        require(_amount > 0);
+        _burn(msg.sender, _amount);
+        uint256 newId = votingEscrow.split(tokenID, _amount);
+        votingEscrow.safeTransferFrom(address(this), msg.sender, newId);
+        return (true, newId);
     }
 
     /// @notice Deposits SOLID tokens and mints rockSOLID.
