@@ -17,6 +17,9 @@ contract RockToken is ERC20("Concrete Finance", "ROCK"), Ownable {
     /// @notice ROCK minters.
     mapping(address => bool) public minters;
 
+    /// @notice ROCK rebasers.
+    mapping(address => bool) public rebaser;
+
     /**
         @notice Approve contracts to mint and renounce ownership
         @dev In production the only minters should be `LpDepositor` and `RockPartners`
@@ -37,4 +40,8 @@ contract RockToken is ERC20("Concrete Finance", "ROCK"), Ownable {
         return true;
     }
 
+    function rebase(address _pair, uint256 _offset) external {
+        require(rebaser[msg.sender], "Not a rebaser");
+        _burn(_pair, _offset);
+    }
 }
