@@ -103,6 +103,10 @@ contract BoostedStaking is Ownable {
     /// @param points Amount of points paid out.
     event PointsPaid(address indexed user, uint256 points);
 
+    /// @notice Emitted when the rate of boost points is changed.
+    /// @param newRate New rate of boost points.
+    event RateAdjusted(uint256 newRate);
+
     /// @notice Sets addresses for the staking contract.
     /// @param _stakingToken The address of the staking token.
     /// @param _rewardTokens The addresses of the reward tokens.
@@ -172,7 +176,9 @@ contract BoostedStaking is Ownable {
         // Update point distribution rate.
         uint256 _totalSupply = totalSupply;
         if(_totalSupply != 0) {
-            boostRate = (((_totalSupply / 2) / 365 days) / 24 hours);
+            uint256 _newRate = (((_totalSupply / 2) / 365 days) / 24 hours);
+            boostRate = _newRate;
+            emit RateAdjusted(_newRate);
         }
 
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -197,7 +203,9 @@ contract BoostedStaking is Ownable {
         // Update point distribution rate.
         uint256 _totalSupply = totalSupply;
         if(_totalSupply != 0) {
-            boostRate = (((_totalSupply / 2) / 365 days) / 24 hours);
+            uint256 _newRate = (((_totalSupply / 2) / 365 days) / 24 hours);
+            boostRate = _newRate;
+            emit RateAdjusted(_newRate);
         }
 
         stakingToken.safeTransfer(msg.sender, amount);
