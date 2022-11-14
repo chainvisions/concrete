@@ -161,6 +161,27 @@ contract BoostedStaking is Ownable {
         return rewardData[_rewardsToken].rewardRate * REWARDS_DURATION;
     }
 
+    function getUserStats(address _account) external view returns (
+        uint256 depositedTokens,
+        uint256 boostedBalance,
+        uint256[] memory earnedRewards,
+        uint256 pointsHeld,
+        uint256 pendingPoints
+    ) {
+        address[2] memory _rewardTokens = rewardTokens;
+        uint256[] memory earnings = new uint256[](2);
+        for(uint256 i; i < _rewardTokens.length;) {
+            earnings[i] = earned(_account, _rewardTokens[i]);
+            unchecked { ++i; }
+        }
+
+        depositedTokens = balanceOf[_account];
+        boostedBalance = derivedBalances[_account];
+        earnedRewards = earnings;
+        pointsHeld = boostBalance[msg.sender];
+        pendingPoints = earnedPoints(_account);
+    }
+
     function stake(uint256 amount) external updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         // Update the current point reward data
