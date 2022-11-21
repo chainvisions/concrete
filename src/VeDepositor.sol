@@ -242,7 +242,7 @@ contract VeDepositor is ERC20("rockSOLID: Tokenized veSOLID", "rockSOLID"), Owna
         // to the known total supply, this is necessary because anyone can call
         // `veDistributor.claim` for any NFT
         (uint256 amount,) = votingEscrow.locked(tokenID);
-        amount -= totalSupply();
+        amount -= (totalSupply() + totalSupplyToSplit);
 
         if (amount > 0) {
             _mint(address(this), amount);
