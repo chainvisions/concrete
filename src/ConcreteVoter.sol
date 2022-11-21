@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ITokenLocker} from "./interfaces/concrete/ITokenLocker.sol";
 import {IRockPartners} from "./interfaces/concrete/IRockPartners.sol";
 import {IBaseV1Voter} from "./interfaces/solidly/IBaseV1Voter.sol";
+import {IBaseV1Minter} from "./interfaces/solidly/IBaseV1Minter.sol";
 
 /// @title Concrete Voter
 /// @author Chainvisions, forked from Solidex
@@ -17,6 +18,9 @@ contract ConcreteVoter is Ownable {
 
     /// @notice Solidly voter contract.
     IBaseV1Voter public immutable solidlyVoter;
+
+    /// @notice Solidly minter contract.
+    IBaseV1Minter public immutable solidMinter;
 
     /// @notice ROCK locking contract.
     ITokenLocker public tokenLocker;
@@ -60,6 +64,7 @@ contract ConcreteVoter is Ownable {
     mapping(address => PoolData) poolData;
 
     uint256 lastWeek;           // week of the last received vote (+1)
+    uint256 recordedPeriod;     // last recorded solidly epoch
     uint256 topVotesLength;     // actual number of items stored in `topVotes`
     uint256 minTopVote;         // smallest vote-weight for pools included in `topVotes`
     uint256 minTopVoteIndex;    // `topVotes` index where the smallest vote is stored (+1)
@@ -96,8 +101,9 @@ contract ConcreteVoter is Ownable {
         int256[] weights
     );
 
-    constructor(IBaseV1Voter _voter) {
+    constructor(IBaseV1Voter _voter, IBaseV1Minter _minter) {
         solidlyVoter = _voter;
+        solidMinter = _minter;
 
         // position 0 is empty so that an ID of 0 can be interpreted as unset
         poolAddresses.push(address(0));
@@ -113,6 +119,7 @@ contract ConcreteVoter is Ownable {
         rockPartners = _rockPartners;
         veDepositor = _veDepositor;
         startTime = _tokenLocker.startTime();
+        recordedPeriod = solidMinter.active_period();
 
         // hardcoded pools always receive 5% of the vote
         // and cannot receive negative vote weights
@@ -190,10 +197,11 @@ contract ConcreteVoter is Ownable {
         uint256 _minTopVoteIndexMem = minTopVoteIndex;
         uint64[MAX_VOTES_WITH_BUFFER] memory t = topVotes[week];
 
-        if (week + 1 > lastWeek) {
+        if (week + 1 > lastWeek && solidMinter.active_period() > recordedPeriod) {
             _topVotesLengthMem = 0;
             _minTopVoteMem = 0;
             lastWeek = week + 1;
+            recordedPeriod = solidMinter.active_period();
         }
         for (uint x; x < _pools.length;) {
             address _pool = _pools[x];
